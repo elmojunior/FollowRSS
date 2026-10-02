@@ -1518,6 +1518,12 @@
       flex-wrap: wrap;
     }
 
+    .audio-action-buttons .offline-btn-slot {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .episode-body {
       background-color: var(--bg-surface);
       border: none;
@@ -2342,6 +2348,35 @@
         width: 0.95rem;
         height: 0.95rem;
       }
+
+      .audio-action-card {
+        padding: 1.25rem;
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+      }
+
+      .audio-info {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .audio-action-buttons {
+        width: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.65rem;
+      }
+
+      .audio-action-buttons .btn,
+      .audio-action-buttons .offline-btn-slot,
+      .audio-action-buttons .offline-btn-slot .btn {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+      }
     }
 
     /* SMARTPHONE BREAKPOINT (<= 640px) */
@@ -2688,10 +2723,18 @@
       .audio-action-buttons {
         width: 100%;
         flex-direction: column;
+        align-items: stretch;
+        gap: 0.65rem;
       }
 
-      .audio-action-buttons .btn {
+      .audio-action-buttons .btn,
+      .audio-action-buttons .offline-btn-slot,
+      .audio-action-buttons .offline-btn-slot .btn {
         width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
       }
 
       .episode-body {
@@ -5801,7 +5844,7 @@
                     </div>
                   </div>
 
-                  <div class="audio-action-buttons" style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+                  <div class="audio-action-buttons">
                     <button class="btn btn-primary btn-pill" id="btn-detail-play" style="height: 42px; padding: 0 1.5rem; font-size: 0.92rem; font-weight: 600;">
                       <svg viewBox="0 0 24 24" style="transform: translateX(1px);"><path d="M7 4.5v15a1 1 0 0 0 1.55.83l12-7.5a1 1 0 0 0 0-1.66l-12-7.5A1 1 0 0 0 7 4.5z" fill="currentColor"></path></svg>
                       <span>${hasSaved ? `Continuar (${playerController.formatTime(savedProgress.currentTime)})` : 'Reproduzir Agora'}</span>
