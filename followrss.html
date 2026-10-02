@@ -1108,6 +1108,32 @@
       flex-shrink: 0;
     }
 
+    .badge-saved-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 0.12rem 0.5rem;
+      border-radius: var(--radius-full);
+      letter-spacing: 0.01em;
+    }
+    .badge-saved-tag svg {
+      width: 11px;
+      height: 11px;
+      fill: currentColor;
+    }
+
+    .btn-toggle-save {
+      transition: all var(--transition);
+    }
+    .btn-toggle-save.is-saved svg {
+      color: var(--primary);
+      fill: var(--primary);
+    }
+
     .btn-detail-downloaded .label-offline-delete {
       display: none !important;
     }
@@ -2742,6 +2768,11 @@
           <svg viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
           Início / Todos
         </a>
+        <a href="#/saved" class="nav-item" id="nav-saved">
+          <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
+          Conteúdo Salvo
+          <span class="nav-badge" id="sidebar-saved-count" style="display: none;">0</span>
+        </a>
         <a href="#/podcasts" class="nav-item" id="nav-podcasts">
           <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
           Apenas Podcasts
@@ -3074,18 +3105,52 @@
         });
       }
 
+      async getSavedItems() {
+        const store = await this.getStore('items');
+        return new Promise((resolve, reject) => {
+          const req = store.getAll();
+          req.onsuccess = () => {
+            const items = req.result || [];
+            const saved = items.filter(it => Boolean(it.isSaved));
+            const unique = this.deduplicateItems(saved, false);
+            // Ordenar do mais novo para o mais antigo pela data de publicação (pubDate)
+            unique.sort((a, b) => (b.pubDate || 0) - (a.pubDate || 0));
+            resolve(unique);
+          };
+          req.onerror = () => reject(req.error);
+        });
+      }
+
       async putItems(items) {
         if (!items || !items.length) return;
         const store = await this.getStore('items', 'readwrite');
         return new Promise((resolve, reject) => {
           let count = 0;
           items.forEach(item => {
-            const req = store.put(item);
-            req.onsuccess = () => {
-              count++;
-              if (count === items.length) resolve();
+            const getReq = store.get(item.id);
+            getReq.onsuccess = () => {
+              const existing = getReq.result;
+              if (existing) {
+                if (existing.isRead !== undefined) item.isRead = existing.isRead;
+                if (existing.listenedAll !== undefined) item.listenedAll = existing.listenedAll;
+                if (existing.isSaved !== undefined) item.isSaved = existing.isSaved;
+                if (existing.savedAt !== undefined) item.savedAt = existing.savedAt;
+              }
+              const putReq = store.put(item);
+              putReq.onsuccess = () => {
+                count++;
+                if (count === items.length) resolve();
+              };
+              putReq.onerror = () => reject(putReq.error);
             };
-            req.onerror = () => reject(req.error);
+            getReq.onerror = () => {
+              const putReq = store.put(item);
+              putReq.onsuccess = () => {
+                count++;
+                if (count === items.length) resolve();
+              };
+              putReq.onerror = () => reject(putReq.error);
+            };
           });
         });
       }
@@ -4385,7 +4450,9 @@
           this.searchQuery = e.target.value.toLowerCase().trim();
           this.currentPage = 1;
           const hash = window.location.hash;
-          if (hash === '' || hash === '#/' || hash === '#/podcasts' || hash === '#/articles') {
+          if (hash === '#/saved') {
+            this.renderSavedView();
+          } else if (hash === '' || hash === '#/' || hash === '#/podcasts' || hash === '#/articles') {
             this.renderHome();
           } else {
             window.location.hash = '#/';
@@ -4695,7 +4762,9 @@
         const channels = await db.getAllChannels();
         const listEl = document.getElementById('sidebar-channels-list');
         const countBadge = document.getElementById('sidebar-channel-count');
-        countBadge.textContent = channels.length;
+        if (countBadge) countBadge.textContent = channels.length;
+
+        await this.updateSavedCountBadge();
 
         if (!channels.length) {
           listEl.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-dim); padding: 0.5rem 0.75rem;">Nenhum canal ainda</div>';
@@ -4708,6 +4777,19 @@
             <span>${Security.escapeHTML(ch.title)}</span>
           </a>
         `).join('');
+      }
+
+      async updateSavedCountBadge() {
+        try {
+          const savedItems = await db.getSavedItems();
+          const badge = document.getElementById('sidebar-saved-count');
+          if (badge) {
+            badge.textContent = savedItems.length;
+            badge.style.display = savedItems.length > 0 ? 'inline-flex' : 'none';
+          }
+        } catch (e) {
+          console.warn('Erro ao atualizar contador de salvos:', e);
+        }
       }
 
       async syncAllFeeds() {
@@ -4765,6 +4847,10 @@
           this.currentFilter = 'all';
           this.currentPage = 1;
           await this.renderHome();
+        } else if (hash === '#/saved') {
+          document.getElementById('nav-saved')?.classList.add('active');
+          this.currentPage = 1;
+          await this.renderSavedView();
         } else if (hash === '#/podcasts') {
           document.getElementById('nav-podcasts')?.classList.add('active');
           this.currentFilter = 'podcasts';
@@ -5040,6 +5126,125 @@
         this.observeSeenItems();
       }
 
+      // --- VIEW 1.5: CONTEÚDO SALVO (Itens salvos para ver/ouvir depois, ordenados do mais novo para o mais antigo) ---
+      async renderSavedView() {
+        const savedItems = await db.getSavedItems();
+        await this.updateSavedCountBadge();
+
+        if (!savedItems.length) {
+          this.outlet.innerHTML = `
+            <div class="page-container">
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
+                <div class="empty-title">Nenhum Conteúdo Salvo</div>
+                <p style="margin-bottom: 1.5rem;">Você ainda não guardou nenhum artigo ou podcast para ver depois.<br>Clique no ícone de salvar em qualquer publicação para encontrá-la facilmente aqui.</p>
+                <a href="#/" class="btn btn-primary btn-pill">Explorar Início</a>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        // Base items matching search query
+        let searchBase = savedItems;
+        if (this.searchQuery) {
+          const q = this.searchQuery;
+          searchBase = searchBase.filter(it => 
+            (it.title && it.title.toLowerCase().includes(q)) ||
+            (it.author && it.author.toLowerCase().includes(q)) ||
+            (it.description && it.description.toLowerCase().includes(q))
+          );
+        }
+
+        if (!this.savedFilter) this.savedFilter = 'all';
+
+        const matchesType = (it, type) => {
+          if (type === 'podcasts') return it.isPodcast;
+          if (type === 'articles') return !it.isPodcast;
+          return true;
+        };
+
+        const countAll = searchBase.length;
+        const countPodcasts = searchBase.filter(it => it.isPodcast).length;
+        const countArticles = searchBase.filter(it => !it.isPodcast).length;
+
+        let filtered = searchBase.filter(it => matchesType(it, this.savedFilter));
+
+        const totalItems = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.itemsPerPage));
+        if (this.currentPage > totalPages) this.currentPage = totalPages;
+
+        const startIndex = (this.currentPage - 1) * this.itemsPerPage;
+        const pageItems = filtered.slice(startIndex, startIndex + this.itemsPerPage);
+
+        this.outlet.innerHTML = `
+          <div class="page-container">
+            <div class="section-header">
+              <div>
+                <h1 class="section-title" style="display: flex; align-items: center; gap: 0.65rem;">
+                  <svg viewBox="0 0 24 24" style="width: 26px; height: 26px; color: var(--primary); fill: var(--primary);"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
+                  <span>Conteúdo Salvo</span>
+                </h1>
+                <span class="section-subtitle">${totalItems} ${totalItems === 1 ? 'item salvo' : 'itens salvos'} para ver ou ouvir depois • Ordenados do mais novo para o mais antigo</span>
+              </div>
+
+              <div class="view-mode-toggle" title="Modo de visualização">
+                <button class="btn-view-mode ${this.viewMode === 'cards' ? 'active' : ''}" data-mode="cards" title="Visualização em Cards">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
+                </button>
+                <button class="btn-view-mode ${this.viewMode === 'list' ? 'active' : ''}" data-mode="list" title="Visualização em Lista">
+                  <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Saved Type Filters Bar -->
+            <div class="filters-container">
+              <div class="filters-bar">
+                <button class="filter-chip ${this.savedFilter === 'all' ? 'active' : ''}" data-saved-filter="all">Todos os Salvos (${countAll})</button>
+                <button class="filter-chip ${this.savedFilter === 'podcasts' ? 'active' : ''}" data-saved-filter="podcasts">Podcasts (${countPodcasts})</button>
+                <button class="filter-chip ${this.savedFilter === 'articles' ? 'active' : ''}" data-saved-filter="articles">Artigos & Notícias (${countArticles})</button>
+              </div>
+            </div>
+
+            ${filtered.length === 0 ? `
+              <div class="empty-state">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <div class="empty-title">Nenhum item salvo corresponde ao filtro</div>
+                <p>Tente selecionar outra categoria ou limpar a busca.</p>
+              </div>
+            ` : `
+              ${this.viewMode === 'cards' ? `
+                <div class="items-grid">
+                  ${pageItems.map(item => this.renderItemCard(item)).join('')}
+                </div>
+              ` : `
+                <div class="items-list">
+                  ${pageItems.map(item => this.renderItemRow(item)).join('')}
+                </div>
+              `}
+
+              ${this.renderPaginationControls(this.currentPage, totalPages, totalItems)}
+            `}
+          </div>
+        `;
+
+        this.bindCardEvents();
+        this.bindViewModeEvents();
+        this.bindPaginationEvents(totalPages, () => this.renderSavedView());
+        this.observeSeenItems();
+
+        document.querySelectorAll('.filter-chip[data-saved-filter]').forEach(chip => {
+          chip.addEventListener('click', (e) => {
+            const f = e.currentTarget.getAttribute('data-saved-filter');
+            if (f === this.savedFilter) return;
+            this.savedFilter = f;
+            this.currentPage = 1;
+            this.renderSavedView();
+          });
+        });
+      }
+
       renderItemCard(item) {
         const plainDesc = Security.stripTags(item.description || item.content || '').substring(0, 160) + '...';
         const cover = item.imageUrl || playerController.getDefaultCover();
@@ -5082,6 +5287,12 @@
                 ` : (isItemNew(item) ? `
                   <span class="badge-status-unread" title="${item.isPodcast ? 'Episódio novo (Clique para marcar como ouvido)' : 'Artigo novo (Clique para marcar como lido)'}"><span class="unread-dot"></span>Novo</span>
                 ` : '')}
+                ${item.isSaved ? `
+                  <span class="badge-saved-tag" title="Salvo para ver depois">
+                    <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
+                    <span>Salvo</span>
+                  </span>
+                ` : ''}
                 ${hasSaved ? `
                   <span class="badge-resume-tag" title="Você parou em ${playerController.formatTime(saved.currentTime)}">
                     <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -5110,6 +5321,9 @@
                       ${renderDownloadSlotHTML(item)}
                     </div>
                   ` : ''}
+                  <button class="btn btn-icon btn-toggle-save ${item.isSaved ? 'is-saved' : ''}" data-item-id="${item.id}" title="${item.isSaved ? 'Remover dos Conteúdos Salvos' : 'Salvar para ver depois'}">
+                    <svg viewBox="0 0 24 24" style="${item.isSaved ? 'color: var(--primary); fill: var(--primary);' : ''}"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="${item.isSaved ? 'currentColor' : 'none'}"></path></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -5157,6 +5371,12 @@
                 ` : (isItemNew(item) ? `
                   <span class="badge-status-unread" title="${item.isPodcast ? 'Episódio novo (Clique para marcar como ouvido)' : 'Artigo novo (Clique para marcar como lido)'}"><span class="unread-dot"></span>Novo</span>
                 ` : '')}
+                ${item.isSaved ? `
+                  <span class="badge-saved-tag" title="Salvo para ver depois">
+                    <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
+                    <span>Salvo</span>
+                  </span>
+                ` : ''}
                 ${hasSaved ? `
                   <span class="badge-resume-tag" title="Você parou em ${playerController.formatTime(saved.currentTime)}">${playerController.formatTime(saved.currentTime)}</span>
                 ` : ''}
@@ -5173,6 +5393,9 @@
                   ${renderDownloadSlotHTML(item)}
                 </div>
               ` : ''}
+              <button class="btn btn-icon btn-toggle-save ${item.isSaved ? 'is-saved' : ''}" data-item-id="${item.id}" title="${item.isSaved ? 'Remover dos Conteúdos Salvos' : 'Salvar para ver depois'}">
+                <svg viewBox="0 0 24 24" style="${item.isSaved ? 'color: var(--primary); fill: var(--primary);' : ''}"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="${item.isSaved ? 'currentColor' : 'none'}"></path></svg>
+              </button>
               <a href="#/item/${encodeURIComponent(item.id)}" class="btn btn-icon" title="Ver detalhes">
                 <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </a>
@@ -5224,36 +5447,37 @@
         `;
       }
 
-      bindPaginationEvents(totalPages) {
+      bindPaginationEvents(totalPages, onPageChange = null) {
+        const trigger = onPageChange || (() => this.renderHome());
         document.getElementById('pg-first')?.addEventListener('click', () => {
           this.currentPage = 1;
-          this.renderHome();
+          trigger();
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
         document.getElementById('pg-prev')?.addEventListener('click', () => {
           if (this.currentPage > 1) {
             this.currentPage--;
-            this.renderHome();
+            trigger();
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         });
         document.getElementById('pg-next')?.addEventListener('click', () => {
           if (this.currentPage < totalPages) {
             this.currentPage++;
-            this.renderHome();
+            trigger();
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }
         });
         document.getElementById('pg-last')?.addEventListener('click', () => {
           this.currentPage = totalPages;
-          this.renderHome();
+          trigger();
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
 
         document.querySelectorAll('.page-btn[data-page]').forEach(btn => {
           btn.addEventListener('click', (e) => {
             this.currentPage = parseInt(e.target.getAttribute('data-page'), 10);
-            this.renderHome();
+            trigger();
             window.scrollTo({ top: 0, behavior: 'smooth' });
           });
         });
@@ -5348,6 +5572,68 @@
             const url = btn.getAttribute('data-url');
             const title = btn.getAttribute('data-title');
             playerController.downloadAudio(url, title);
+          });
+        });
+
+        document.querySelectorAll('.btn-toggle-save').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const itemId = btn.getAttribute('data-item-id');
+            if (!itemId) return;
+            const item = await db.getItem(itemId);
+            if (!item) return;
+
+            item.isSaved = !item.isSaved;
+            item.savedAt = item.isSaved ? Date.now() : null;
+            await db.updateItem(item);
+
+            const isSaved = item.isSaved;
+            Toast.show(isSaved ? 'Item guardado em "Conteúdo Salvo"!' : 'Item removido dos Conteúdos Salvos.', isSaved ? 'success' : 'info');
+
+            // Update all toggle-save buttons on the current screen for this item
+            document.querySelectorAll(`.btn-toggle-save[data-item-id="${CSS.escape(itemId)}"]`).forEach(b => {
+              b.classList.toggle('is-saved', isSaved);
+              b.title = isSaved ? 'Remover dos Conteúdos Salvos' : 'Salvar para ver depois';
+              const svg = b.querySelector('svg');
+              if (svg) {
+                svg.style.color = isSaved ? 'var(--primary)' : '';
+                svg.style.fill = isSaved ? 'var(--primary)' : '';
+                const path = svg.querySelector('path');
+                if (path) path.setAttribute('fill', isSaved ? 'currentColor' : 'none');
+              }
+              const labelSpan = b.querySelector('span');
+              if (labelSpan) {
+                labelSpan.textContent = isSaved ? 'Salvo para Depois' : 'Salvar para Depois';
+                b.style.color = isSaved ? 'var(--primary)' : '';
+                b.style.borderColor = isSaved ? 'var(--primary)' : '';
+                b.style.background = isSaved ? 'var(--primary-light)' : '';
+              }
+            });
+
+            // Update badge on cards
+            document.querySelectorAll(`.item-card[data-item-id="${CSS.escape(itemId)}"], .item-list-row[data-item-id="${CSS.escape(itemId)}"]`).forEach(card => {
+              const meta = card.querySelector('.item-channel-meta, .item-list-meta');
+              if (meta) {
+                const existingBadge = meta.querySelector('.badge-saved-tag');
+                if (isSaved && !existingBadge) {
+                  const tag = document.createElement('span');
+                  tag.className = 'badge-saved-tag';
+                  tag.title = 'Salvo para ver depois';
+                  tag.innerHTML = '<svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg><span>Salvo</span>';
+                  meta.appendChild(tag);
+                } else if (!isSaved && existingBadge) {
+                  existingBadge.remove();
+                }
+              }
+            });
+
+            await this.updateSavedCountBadge();
+
+            // If we are currently in the saved view and an item was removed, re-render
+            if (window.location.hash === '#/saved' && !isSaved) {
+              await this.renderSavedView();
+            }
           });
         });
       }
@@ -5528,6 +5814,10 @@
                         <span>Marcar como ${item.isPodcast ? 'ouvido' : 'lido'}</span>
                       </span>
                     `)}
+                    <button class="btn btn-outline btn-pill btn-toggle-save ${item.isSaved ? 'is-saved' : ''}" id="btn-detail-save" data-item-id="${item.id}" title="${item.isSaved ? 'Remover dos Conteúdos Salvos' : 'Salvar para ver depois'}" style="height: 26px; padding: 0.22rem 0.65rem; font-size: 0.75rem; border-radius: var(--radius-full); display: inline-flex; align-items: center; gap: 0.35rem; ${item.isSaved ? 'color: var(--primary); border-color: var(--primary); background: var(--primary-light);' : ''}">
+                      <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; ${item.isSaved ? 'color: var(--primary); fill: var(--primary);' : ''}"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" fill="${item.isSaved ? 'currentColor' : 'none'}"></path></svg>
+                      <span>${item.isSaved ? 'Salvo para Depois' : 'Salvar para Depois'}</span>
+                    </button>
                   </div>
 
                   <h1 class="episode-title">${Security.escapeHTML(item.title)}</h1>
@@ -5606,6 +5896,8 @@
         document.getElementById('btn-detail-download')?.addEventListener('click', () => {
           playerController.downloadAudio(item.audioUrl, item.title);
         });
+
+        this.bindCardEvents();
       }
 
       // --- VIEW 4: LIBRARY MANAGEMENT (Editar Biblioteca) ---
