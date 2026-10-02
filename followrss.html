@@ -566,34 +566,49 @@
 
     .filters-container {
       display: flex;
-      flex-direction: column;
-      gap: 0.65rem;
+      align-items: center;
       margin-bottom: 1.5rem;
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .filters-container::-webkit-scrollbar {
+      display: none;
     }
 
     .filters-bar {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      flex-wrap: wrap;
-      margin-bottom: 0;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+      min-width: max-content;
     }
 
-    .filters-status-bar {
-      gap: 0.45rem;
+    .filters-divider {
+      width: 1px;
+      height: 20px;
+      background-color: var(--border-color);
+      margin: 0 0.25rem;
+      flex-shrink: 0;
     }
 
     .filter-chip {
-      padding: 0.45rem 1rem;
+      padding: 0.42rem 0.95rem;
       border-radius: var(--radius-full);
       background-color: var(--bg-surface);
       border: none;
       color: var(--text-muted);
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       font-weight: 500;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
       transition: all var(--transition);
       cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     [data-theme="light"] .filter-chip {
@@ -621,6 +636,8 @@
       box-shadow: none;
       display: inline-flex;
       align-items: center;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .filter-chip-status:hover {
@@ -4677,20 +4694,6 @@
                 if (fill) fill.style.width = `${pct}%`;
               }
 
-              const meta = card.querySelector('.item-channel-meta');
-              if (meta) {
-                let badge = meta.querySelector('.badge-resume-tag');
-                if (!badge) {
-                  badge = document.createElement('span');
-                  badge.className = 'badge-resume-tag';
-                  badge.innerHTML = '<svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span></span>';
-                  meta.appendChild(badge);
-                }
-                badge.title = `Você parou em ${timeStr}`;
-                const span = badge.querySelector('span');
-                if (span) span.textContent = timeStr;
-              }
-
               const playBtn = card.querySelector('.btn-card-play');
               if (playBtn) playBtn.title = `Continuar aos ${timeStr}`;
             }
@@ -4712,18 +4715,6 @@
                 if (fill) fill.style.width = `${pct}%`;
               }
 
-              const meta = row.querySelector('.item-list-meta');
-              if (meta) {
-                let badge = meta.querySelector('.badge-resume-tag');
-                if (!badge) {
-                  badge = document.createElement('span');
-                  badge.className = 'badge-resume-tag';
-                  meta.appendChild(badge);
-                }
-                badge.title = `Você parou em ${timeStr}`;
-                badge.textContent = timeStr; // Clean text without SVG
-              }
-
               const playBtn = row.querySelector('.btn-card-play');
               if (playBtn) playBtn.title = `Continuar aos ${timeStr}`;
             }
@@ -4738,7 +4729,6 @@
           document.querySelectorAll('.item-card').forEach(card => {
             if (card.getAttribute('data-item-id') === itemId) {
               card.querySelector('.thumb-progress-bar')?.remove();
-              card.querySelector('.badge-resume-tag')?.remove();
               const playBtn = card.querySelector('.btn-card-play');
               if (playBtn) playBtn.title = 'Ouvir Episódio';
             }
@@ -4747,7 +4737,6 @@
           document.querySelectorAll('.item-list-row').forEach(row => {
             if (row.getAttribute('data-item-id') === itemId) {
               row.querySelector('.thumb-progress-bar')?.remove();
-              row.querySelector('.badge-resume-tag')?.remove();
               const playBtn = row.querySelector('.btn-card-play');
               if (playBtn) playBtn.title = 'Ouvir Episódio';
             }
@@ -5044,14 +5033,13 @@
               `;
             })()}
 
-            <!-- Dual Filter Bars: Type + Status -->
+            <!-- Single Line Filters Bar -->
             <div class="filters-container">
               <div class="filters-bar">
                 <span class="filter-chip ${this.currentFilter === 'all' ? 'active' : ''}" data-filter="all">Todos (${countTypeAll})</span>
                 <span class="filter-chip ${this.currentFilter === 'podcasts' ? 'active' : ''}" data-filter="podcasts">Podcasts (${countTypePodcasts})</span>
                 <span class="filter-chip ${this.currentFilter === 'articles' ? 'active' : ''}" data-filter="articles">Artigos (${countTypeArticles})</span>
-              </div>
-              <div class="filters-bar filters-status-bar">
+                <span class="filters-divider"></span>
                 <span class="filter-chip filter-chip-status ${this.currentStatusFilter === 'all' ? 'active' : ''}" data-status-filter="all">Todos os Status (${countStatusAll})</span>
                 <span class="filter-chip filter-chip-status ${this.currentStatusFilter === 'in_progress' ? 'active' : ''}" data-status-filter="in_progress">
                   <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; display: inline-block; vertical-align: -1px; margin-right: 3px;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>Em Andamento (${countInProgress})
@@ -5287,18 +5275,6 @@
                 ` : (isItemNew(item) ? `
                   <span class="badge-status-unread" title="${item.isPodcast ? 'Episódio novo (Clique para marcar como ouvido)' : 'Artigo novo (Clique para marcar como lido)'}"><span class="unread-dot"></span>Novo</span>
                 ` : '')}
-                ${item.isSaved ? `
-                  <span class="badge-saved-tag" title="Salvo para ver depois">
-                    <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
-                    <span>Salvo</span>
-                  </span>
-                ` : ''}
-                ${hasSaved ? `
-                  <span class="badge-resume-tag" title="Você parou em ${playerController.formatTime(saved.currentTime)}">
-                    <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                    <span>${playerController.formatTime(saved.currentTime)}</span>
-                  </span>
-                ` : ''}
               </div>
 
               <a href="#/item/${encodeURIComponent(item.id)}" class="item-title" title="${Security.escapeHTML(item.title)}">
@@ -5371,15 +5347,6 @@
                 ` : (isItemNew(item) ? `
                   <span class="badge-status-unread" title="${item.isPodcast ? 'Episódio novo (Clique para marcar como ouvido)' : 'Artigo novo (Clique para marcar como lido)'}"><span class="unread-dot"></span>Novo</span>
                 ` : '')}
-                ${item.isSaved ? `
-                  <span class="badge-saved-tag" title="Salvo para ver depois">
-                    <svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg>
-                    <span>Salvo</span>
-                  </span>
-                ` : ''}
-                ${hasSaved ? `
-                  <span class="badge-resume-tag" title="Você parou em ${playerController.formatTime(saved.currentTime)}">${playerController.formatTime(saved.currentTime)}</span>
-                ` : ''}
                 ${plainDesc ? `<span class="item-list-desc-inline">• ${Security.escapeHTML(plainDesc)}...</span>` : ''}
               </div>
             </div>
@@ -5610,24 +5577,6 @@
                 b.style.background = isSaved ? 'var(--primary-light)' : '';
               }
             });
-
-            // Update badge on cards
-            document.querySelectorAll(`.item-card[data-item-id="${CSS.escape(itemId)}"], .item-list-row[data-item-id="${CSS.escape(itemId)}"]`).forEach(card => {
-              const meta = card.querySelector('.item-channel-meta, .item-list-meta');
-              if (meta) {
-                const existingBadge = meta.querySelector('.badge-saved-tag');
-                if (isSaved && !existingBadge) {
-                  const tag = document.createElement('span');
-                  tag.className = 'badge-saved-tag';
-                  tag.title = 'Salvo para ver depois';
-                  tag.innerHTML = '<svg viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"></path></svg><span>Salvo</span>';
-                  meta.appendChild(tag);
-                } else if (!isSaved && existingBadge) {
-                  existingBadge.remove();
-                }
-              }
-            });
-
             await this.updateSavedCountBadge();
 
             // If we are currently in the saved view and an item was removed, re-render
