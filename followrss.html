@@ -4598,8 +4598,20 @@
 
         // Mobile sidebar toggle
         const sidebar = document.getElementById('sidebar');
-        document.getElementById('btn-toggle-sidebar').addEventListener('click', () => {
+        const sidebarToggleBtn = document.getElementById('btn-toggle-sidebar');
+        sidebarToggleBtn.addEventListener('click', () => {
           sidebar.classList.toggle('open');
+        });
+
+        // Close sidebar when clicking outside it on mobile
+        document.addEventListener('click', (e) => {
+          if (
+            sidebar.classList.contains('open') &&
+            !sidebar.contains(e.target) &&
+            !sidebarToggleBtn.contains(e.target)
+          ) {
+            sidebar.classList.remove('open');
+          }
         });
 
         document.getElementById('btn-sync-all').addEventListener('click', () => this.syncAllFeeds());
