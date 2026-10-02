@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="followrss-pwa-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+  </defs>
+  <!-- Background with smooth rounded corners -->
+  <rect width="512" height="512" rx="128" fill="url(#followrss-pwa-grad)" />
+  
+  <!-- FollowRSS Vector Logo Symbol -->
+  <circle cx="150" cy="362" r="32" fill="#ffffff" />
+  <path d="M150 252 A110 110 0 0 1 260 362" fill="none" stroke="#ffffff" stroke-width="46" stroke-linecap="round" />
+  <path d="M150 150 A212 212 0 0 1 362 362" fill="none" stroke="#ffffff" stroke-width="46" stroke-linecap="round" />
+</svg>
