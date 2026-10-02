@@ -102,7 +102,6 @@ O FollowRSS foi configurado como um **Progressive Web App (PWA)**:
 ```
 FollowRSS/
 ├── followrss.html   # Aplicação principal FollowRSS (Single-File)
-├── index.html       # Redirecionamento automático para followrss.html
 ├── LICENSE          # Licença GNU General Public License v3.0
 ├── README.md        # Documentação do projeto
 ├── manifest.json    # Manifesto de configuração PWA
